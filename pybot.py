@@ -1,7 +1,7 @@
 import socket
 
 nick = "nagbot"
-debug = False
+debug = True
 network = 'plug.cs.fiu.edu'
 port = 6667
 
@@ -23,21 +23,23 @@ irc.send(bytes('PRIVMSG ' + chan + ' :Hello.\r\n', 'UTF-8'))
 def help(message):
     return('Help section under construction')
 
-def commOpts(comm, message, data):
+def commOpts(comm, args, data):
     print(message)
     
     if comm == 'author':
-        return(' I am coded by sonic')
+        return(' I am a PLUG Project!')
 
     elif comm == 'hello':
 
         return('hello ' + nick)
 
     elif comm == 'echo':
-        result = message[6:].strip()
-        if result == '':
+        if len(args) <= 1:
             return('what do you want me to say?')
         else:
+            result = ''
+            for x in args:
+                result = result + x
             return(result)
 
     elif comm == 'help':
@@ -71,7 +73,7 @@ while True:
             comm = message.split( )[0]
             print ('Function is ' + comm + ' From ' + nick) # print who commanded
 
-            arg = data.decode('UTF-8').split( ) # Final split the argument by space, arg[0] will be the actual command
+            arg = data.decode('UTF-8').split( ) # Arguments after the command
 
             args = ''
             for index, item in enumerate(arg) : #for every item in arg
@@ -82,5 +84,5 @@ while True:
                         args += ' ' + item # add the item to the string
 
             if comm.find(';') == 0:
-                irc.send(bytes('PRIVMSG ' + chan + ' :' + commOpts(comm[1:], message, nick) + '\r\n', 'UTF-8'))
+                irc.send(bytes('PRIVMSG ' + chan + ' :' + commOpts(comm[1:], args, nick) + '\r\n', 'UTF-8'))
 
