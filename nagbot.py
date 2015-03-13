@@ -1,8 +1,10 @@
 import socket
 import requests
+import re
+import bs4
 
 nick = "nagbot"
-debug = True
+debug = False
 network = 'plug.cs.fiu.edu'
 port = 6667
 
@@ -21,13 +23,25 @@ irc.send(bytes('USER NAGbot NAGbot NAGbot :Plug IRC\r\n', 'UTF-8'))
 irc.send(bytes('JOIN ' + chan + '\r\n', 'UTF-8'))
 irc.send(bytes('PRIVMSG ' + chan + ' :Hello.\r\n', 'UTF-8'))
 
-def help(arg):
+def link_title(url): # grabs title from url page
+    result = '[title] '
+    response = requests.get(url)
+    titles = bs4.BeautifulSoup(response.text).select('title')
+    if titles:
+        for title in titles:
+            result += title.get_text().strip() + ' '
+        print('results: ' + result)
+    else:
+        result = '[untitled]'
+    return(result)
+
+def help(arg): 
     if arg == 'exch':
         return('exch [<ammount>] [<currency1>] in [<currency2>] - Converts value in <currency1> to <currency2>')
     else:
         return('Help section under construction')
 
-def get_conversion(args):
+def get_conversion(args): # converts currency
     url = ('http://rate-exchange.appspot.com/currency?from=%s&to=%s&q=1') % (args[1], args[3])
     try:
         result = requests.get(url).json()['v']
@@ -36,16 +50,13 @@ def get_conversion(args):
     except KeyError:
         return('Error: failed to parse response')
 
-
 def commOpts(comm, args, user_nick):
-    print(message)
-    
     if comm == 'author':
         return(' I am a PLUG Project!')
 
-    elif comm == 'hello':
+    elif comm == 'hello' or comm == 'hi' or comm == 'yo':
 
-        return('Hello ' + user_nick)
+        return('Greetings ' + user_nick)
 
     elif comm == 'echo':
         if len(args) <= 1:
@@ -79,23 +90,37 @@ def sender(destination, user_nick):
 
 while True:
     data = irc.recv (4096) # make data the receive buffer
-    print(data)
-    if data.find(bytes('PING', 'UTF-8')) != -1: # if ping is found in the data
-        irc.send(bytes('PONG ' + data.decode('UTF-8').split()[1] + '\r\n','UTF-8')) # send pong back
-        print('PONG sent')
+    data_str = data.decode('UTF-8')
+    print('data: ' + data_str)
 
-    elif data.find(bytes('PRIVMSG', 'UTF-8')) != -1: # if PRIVMSG is in Data, Parse it
+    if data_str.find(nick) != -1:
 
-        message = ':'.join(data.decode('UTF-8').split (':')[2:]) # split command from the message
-        print('this: ' + message)
+    if data_str.find('PING') == 0: # if ping is found in 0th pos
+        irc.send(bytes('PONG ' + data_str.split()[1] + '\r\n','UTF-8')) # send pong back
+        print('PONG sent: ' + 'PONG ' + data_str.split()[1] + '\n')
 
-        if message.lower().find(chan) == -1: # if (change to chan name) is taken from hostname
-            arg = data.decode('UTF-8').split( ) # Arguments after the command
+    elif data_str.find('PRIVMSG') != -1: # if PRIVMSG is in Data, Parse it
+        user_nick = data_str.split('!')[0].replace(':','')
+
+        destination = data_str.split(':')[1].split (' ')[2] # destination taken from the data
+
+        message = ''.join(data_str.split (':')[2:]) # split command from the message
+        print('message: ' + message)
+        
+
+        urls = re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', data_str)
+
+        print(urls)
+
+        for x in urls:
+            irc.send(bytes('PRIVMSG ' + sender(destination, user_nick) + ' :' + link_title(x) + '\r\n', 'UTF-8'))
+
+        else:
+            arg = data_str.split( ) # Arguments after the command
 
             print(arg)
 
             args = ''
-            # comm = ''
             for index, item in enumerate(arg) : #for every item in arg
                 if index == 3:
                     comm = item.lower().replace(':','')
@@ -104,10 +129,7 @@ while True:
                         args = item
                     else:
                         args += ' ' + item # add the item to the string
-            user_nick = data.decode('UTF-8').split('!')[ 0 ].replace(':','')
 
-            destination = ''.join(data.decode('UTF-8').split(':')[:2]).split (' ')[-2] # destination taken from the data
-            print('destination: ' + destination)
 
             print ('Function is ' + comm + ' From ' + user_nick) # print who commanded
             if comm.find(';') == 0:     # finds ; at the start of the string
